@@ -1,0 +1,18 @@
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # geometry.bin must download as a binary buffer
+    location ~* \.bin$ {
+        default_type application/octet-stream;
+        add_header Cache-Control "public, max-age=86400";
+    }
+    location ~* \.(jpg|png|json)$ {
+        add_header Cache-Control "public, max-age=86400";
+    }
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

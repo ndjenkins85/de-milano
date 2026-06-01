@@ -1,0 +1,138 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>de_milano — a walk through a map I built in 2003</title>
+<style>
+ html,body{margin:0;height:100%;overflow:hidden;background:#0b0d10;font-family:-apple-system,system-ui,sans-serif;color:#e7edf3}
+ #c{display:block}
+ #intro{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+   background:radial-gradient(120% 120% at 50% 30%,#1a2433,#0a0c10);text-align:center;cursor:pointer}
+ #intro .card{max-width:560px;padding:30px}
+ #intro h1{font-size:30px;font-weight:600;letter-spacing:1px;margin:0 0 4px}
+ #intro .sub{opacity:.6;font-size:13px;margin-bottom:22px;letter-spacing:.5px}
+ #intro .brief{text-align:left;font-size:14px;line-height:1.6;opacity:.85;border-left:2px solid #3a5a7a;padding:4px 0 4px 16px;margin:18px 0}
+ #intro .go{margin-top:22px;font-size:15px;opacity:.9}
+ #intro kbd{background:#222c38;border:1px solid #3a4756;border-radius:4px;padding:1px 7px;font-size:.85em}
+ #hud{position:fixed;left:12px;top:10px;z-index:5;font-size:12px;color:#9fb0c0;opacity:.7}
+ #loading{position:fixed;left:0;right:0;bottom:40px;text-align:center;z-index:21;opacity:.7;font-size:13px}
+ .pad{position:fixed;z-index:8;display:none;touch-action:none}
+ .pad button{width:54px;height:54px;margin:3px;border-radius:50%;border:1px solid #3a4756;
+   background:rgba(30,40,52,.55);color:#cdd6e0;font-size:20px}
+ #move{left:16px;bottom:16px} #vert{right:16px;bottom:16px}
+</style></head><body>
+<div id="hud">de_milano · BlueMania · ~2003 → reskinned with CC0 textures</div>
+<div id="intro"><div class="card">
+ <h1>de_milano</h1>
+ <div class="sub">a Counter-Strike map I built as “BlueMania”, ~2003 — walk it again</div>
+ <div class="brief">
+  <b>Mission: Bomb Defuse · Location: Milano.</b><br>
+  A group of terrorists have invaded a small town. The nearby river Ticiano has flooded its banks.
+  The CTs must stop them bombing the church or the winery — or the village drowns.<br>
+  <span style="opacity:.6">— Mapping &amp; design: BlueMania · textures: Locknuts &amp; JoeSmoe (original); CC0 substitutes for the rest.</span>
+ </div>
+ <div class="go"><b>Click / tap to enter.</b><br><span style="opacity:.7">
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · mouse look · <kbd>Space</kbd>/<kbd>Shift</kbd> fly up/down · <kbd>Esc</kbd> release · (touch: drag to look, pads to move)</span></div>
+</div></div>
+<div id="loading">loading the world…</div>
+<div class="pad" id="move"><div style="display:flex"><button data-k="KeyA">◀</button><button data-k="KeyW">▲</button><button data-k="KeyD">▶</button></div><div style="text-align:center"><button data-k="KeyS">▼</button></div></div>
+<div class="pad" id="vert"><button data-k="Space">⤒</button><button data-k="ShiftLeft">⤓</button></div>
+<canvas id="c"></canvas>
+<script type="importmap">{"imports":{
+ "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+ "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+const ren=new THREE.WebGLRenderer({canvas:c,antialias:true});
+ren.setPixelRatio(Math.min(devicePixelRatio,2)); ren.setSize(innerWidth,innerHeight);
+ren.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x9fb8d0, 2000, 7000);
+const cam=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,1,30000);
+
+// gradient sky dome
+const sky=new THREE.Mesh(new THREE.SphereGeometry(14000,32,16),
+ new THREE.ShaderMaterial({side:THREE.BackSide,uniforms:{},
+  vertexShader:`varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec3 p;void main(){float h=normalize(p).y*.5+.5;
+   vec3 c=mix(vec3(.78,.84,.72),mix(vec3(.62,.76,.9),vec3(.30,.5,.78),smoothstep(.5,1.,h)),smoothstep(0.,.6,h));
+   gl_FragColor=vec4(c,1.);}`}));
+scene.add(sky);
+scene.add(new THREE.HemisphereLight(0xdfeaff,0x55503f,1.05));
+const sun=new THREE.DirectionalLight(0xfff2dc,1.15); sun.position.set(0.5,1,0.3); scene.add(sun);
+
+const loader=new THREE.TextureLoader();
+function mkTex(url,pixel,alpha){
+ const t=loader.load(url); t.wrapS=t.wrapT=THREE.RepeatWrapping;
+ t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4;
+ if(pixel){t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestMipmapLinearFilter;}
+ return t;
+}
+const waters=[];
+function buildMat(m){
+ if(m.kind==='water'){
+  const mat=new THREE.MeshPhongMaterial({color:0x2f6f78,transparent:true,opacity:.62,
+   shininess:90,specular:0x88ccdd,side:THREE.DoubleSide}); waters.push(mat); return mat;
+ }
+ const pixel=m.img.indexOf('/mm_')>-1;
+ const mat=new THREE.MeshLambertMaterial({map:mkTex(m.img,pixel,m.alpha),side:THREE.DoubleSide});
+ if(m.alpha){mat.transparent=true;mat.alphaTest=0.5;}
+ return mat;
+}
+
+Promise.all([fetch('meta.json').then(r=>r.json()),fetch('geometry.bin').then(r=>r.arrayBuffer())])
+.then(([meta,bin])=>{
+ const fp=new Float32Array(bin,0,meta.posBytes/4);
+ const fu=new Float32Array(bin,meta.posBytes);
+ const g=new THREE.BufferGeometry();
+ g.setAttribute('position',new THREE.BufferAttribute(fp,3));
+ g.setAttribute('uv',new THREE.BufferAttribute(fu,2));
+ g.computeVertexNormals();
+ for(const gr of meta.groups) g.addGroup(gr.start,gr.count,gr.mat);
+ const mats=meta.materials.map(buildMat);
+ scene.add(new THREE.Mesh(g,mats));
+ loading.style.display='none';
+ g.computeBoundingBox(); const c2=new THREE.Vector3(); g.boundingBox.getCenter(c2);
+ cam.position.set(c2.x, g.boundingBox.min.y+120, c2.z);
+});
+
+const controls=new PointerLockControls(cam,ren.domElement); scene.add(controls.getObject());
+const touch=matchMedia('(pointer:coarse)').matches;
+intro.addEventListener('click',()=>{ intro.style.display='none';
+ if(touch){enableTouch();} else controls.lock(); });
+controls.addEventListener('unlock',()=>{ if(!touch) intro.style.display='flex'; });
+
+const key={}; addEventListener('keydown',e=>key[e.code]=1); addEventListener('keyup',e=>key[e.code]=0);
+function enableTouch(){
+ document.querySelectorAll('.pad').forEach(p=>p.style.display='block');
+ document.querySelectorAll('.pad button').forEach(b=>{
+  const k=b.dataset.k;
+  const on=e=>{e.preventDefault();key[k]=1;}, off=e=>{e.preventDefault();key[k]=0;};
+  b.addEventListener('touchstart',on);b.addEventListener('touchend',off);b.addEventListener('touchcancel',off);});
+ let lx=0,ly=0,id=null;
+ addEventListener('touchstart',e=>{const t=e.changedTouches[0];
+  if(t.target===ren.domElement){id=t.identifier;lx=t.clientX;ly=t.clientY;}},{passive:false});
+ addEventListener('touchmove',e=>{for(const t of e.changedTouches){if(t.identifier===id){
+  const dx=t.clientX-lx,dy=t.clientY-ly;lx=t.clientX;ly=t.clientY;
+  euler.y-=dx*0.004; euler.x-=dy*0.004; euler.x=Math.max(-1.5,Math.min(1.5,euler.x));
+  cam.quaternion.setFromEuler(euler);}}},{passive:false});
+ addEventListener('touchend',e=>{for(const t of e.changedTouches)if(t.identifier===id)id=null;});
+}
+const euler=new THREE.Euler(0,0,0,'YXZ');
+const clock=new THREE.Clock();
+function loop(){requestAnimationFrame(loop);
+ const d=clock.getDelta(),v=1100*d;
+ const o=controls.getObject();
+ const active=touch||controls.isLocked;
+ if(active){
+  if(key['KeyW'])controls.moveForward(v); if(key['KeyS'])controls.moveForward(-v);
+  if(key['KeyA'])controls.moveRight(-v); if(key['KeyD'])controls.moveRight(v);
+  if(key['Space'])o.position.y+=v; if(key['ShiftLeft']||key['ShiftRight'])o.position.y-=v;
+ }
+ const t=clock.elapsedTime;
+ for(const w of waters) w.opacity=0.55+0.08*Math.sin(t*1.5);
+ ren.render(scene,cam);
+}
+loop();
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
+</script></body></html>
