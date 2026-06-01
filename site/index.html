@@ -92,8 +92,10 @@ Promise.all([fetch('meta.json').then(r=>r.json()),fetch('geometry.bin').then(r=>
  const mats=meta.materials.map(buildMat);
  scene.add(new THREE.Mesh(g,mats));
  loading.style.display='none';
- g.computeBoundingBox(); const c2=new THREE.Vector3(); g.boundingBox.getCenter(c2);
- cam.position.set(c2.x, g.boundingBox.min.y+120, c2.z);
+ // First entry: a real CT spawn (info_player_start), at eye height, looking into the town.
+ cam.position.set(1946.3, 293.9, 147.9);
+ cam.lookAt(0, 0, 0);
+ euler.setFromQuaternion(cam.quaternion); // keep touch-look aligned with the entry view
 });
 
 const controls=new PointerLockControls(cam,ren.domElement); scene.add(controls.getObject());
